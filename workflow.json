@@ -1,0 +1,509 @@
+﻿{
+  "name": "Agente Peluquería - WhatsApp + Google Calendar",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "com.twilio.messaging.inbound-message.received"
+        ]
+      },
+      "id": "node-trigger",
+      "name": "Twilio Trigger",
+      "position": [
+        -192,
+        -96
+      ],
+      "type": "n8n-nodes-base.twilioTrigger",
+      "typeVersion": 1,
+      "webhookId": "bf5af8da-c4e9-4f3d-93b6-dd7aaf070e0a",
+      "credentials": {
+        "twilioApi": {
+          "id": "e2mfxHB5uzcaSBvh",
+          "name": "Twilio account"
+        }
+      },
+      "notes": "Recibe mensajes entrantes de WhatsApp v�a Twilio. En Twilio Console, configura el Webhook URL de tu n�mero apuntando a la URL de este nodo."
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\n\n// n8n WhatsApp Trigger env�a el payload con array 'messages'\n// Estructura real: { messages: [{ from, id, text: { body }, type }], contacts: [...] }\nconst message = data?.messages?.[0];\nconst messageText = message?.text?.body || '';\nconst rawPhone = message?.from || '';\n// WhatsApp env�a el n�mero sin '+', lo a�adimos\nconst phoneNumber = rawPhone ? `+${rawPhone}` : '';\nconst messageId = message?.id || '';\n\n// Sin tel�fono no podemos responder\nif (!phoneNumber) return [];\n\nreturn [{\n  json: {\n    chatInput: messageText,\n    sessionId: phoneNumber,\n    phoneNumber: phoneNumber,\n    messageId: messageId\n  }\n}];"
+      },
+      "id": "node-extract",
+      "name": "Extraer datos del mensaje",
+      "position": [
+        32,
+        384
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "WhatsApp Trigger (Meta API) env�a: from (n�mero sin +), id (message ID), text.body (texto). Se a�ade '+' al n�mero para usar con la API de WhatsApp."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "cond1",
+              "leftValue": "={{ $json.chatInput }}",
+              "operator": {
+                "operation": "notEmpty",
+                "type": "string"
+              },
+              "rightValue": ""
+            },
+            {
+              "id": "cond2",
+              "leftValue": "={{ $json.phoneNumber }}",
+              "operator": {
+                "operation": "notEmpty",
+                "type": "string"
+              },
+              "rightValue": ""
+            }
+          ],
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          }
+        },
+        "options": {}
+      },
+      "id": "node-filter",
+      "name": "�Tiene texto?",
+      "position": [
+        256,
+        384
+      ],
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "notes": "True (rama 1) = hay texto ? Agente. False (rama 2) = no hay texto ? Bienvenida."
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.chatInput }}",
+        "options": {
+          "systemMessage": "=Eres el asistente de reservas de una peluquer�a y atiendes clientes por WhatsApp.\n\nFecha y hora actual: {{ $now.toFormat('yyyy-MM-dd HH:mm') }} (zona horaria Europe/Madrid)\n\nTu funci�n es ayudar a reservar, reprogramar, cancelar o consultar citas usando Google Calendar.\n\nREGLAS IMPORTANTES:\n- Responde en espa�ol, de forma amable, breve y clara.\n- Haz UNA SOLA pregunta por mensaje. Nunca hagas varias preguntas a la vez.\n- Pide �nicamente la informaci�n que falte.\n- Antes de crear una cita debes tener: nombre del cliente, servicio, fecha y hora exactas.\n- Si el cliente dice 'ma�ana por la tarde', convierte eso a opciones concretas como '15:00, 16:30 o 18:00'.\n- NUNCA inventes disponibilidad. Usa siempre la herramienta de Google Calendar para verificar.\n- Si no hay lugar en el horario solicitado, ofrece hasta 3 horarios alternativos ese mismo d�a o el siguiente.\n- Cuando tengas todos los datos, confirma con un resumen antes de crear la cita.\n- Si el mensaje es confuso o fuera del flujo normal, responde: 'Un momento, te conecto con uno de nuestros profesionales. ??'\n- Registra siempre 'Origen: WhatsApp' en la descripci�n del evento.\n- El n�mero de tel�fono del cliente es: {{ $('Extraer datos del mensaje').item.json.phoneNumber }}\n\nSERVICIOS Y DURACIONES (en minutos):\n- Corte: 30 min\n- Corte + brushing: 60 min\n- Color: 90 min\n- Mechas: 120 min\n- Peinado: 45 min\n- Barba: 30 min\n\nHORARIO DE LA PELUQUER�A:\n- Lunes a Viernes: 9:00 a 20:00\n- S�bados: 9:00 a 15:00\n- Domingos: cerrado\n\nFLUJO DE RESERVA:\n1. Detecta si el cliente ya indic� servicio, fecha u hora\n2. Pide el primer dato que falte\n3. Con servicio y fecha aproximada, consulta disponibilidad en Calendar\n4. Ofrece horarios disponibles concretos\n5. Confirma el horario elegido\n6. Pide nombre si a�n no lo tienes\n7. Muestra resumen y pide confirmaci�n\n8. Crea el evento en Calendar\n9. Env�a confirmaci�n final\n\nFORMATO DEL EVENTO EN CALENDAR:\nT�tulo: [Servicio] - [Nombre cliente]\nDescripci�n:\n- Cliente: [nombre]\n- Tel�fono: [n�mero]\n- Servicio: [servicio]\n- Duraci�n: [X min]\n- Origen: WhatsApp"
+        }
+      },
+      "id": "node-agent",
+      "name": "Agente IA Peluquer�a",
+      "position": [
+        736,
+        128
+      ],
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "notes": "Cerebro del agente."
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o",
+        "options": {
+          "temperature": 0.3
+        }
+      },
+      "id": "node-openai",
+      "name": "GPT-4o",
+      "position": [
+        864,
+        352
+      ],
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1,
+      "credentials": {
+        "openAiApi": {
+          "id": "9Q2xrmbFjgp8whdj",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Extraer datos del mensaje').item.json.phoneNumber }}",
+        "contextWindowLength": 10
+      },
+      "id": "node-memory",
+      "name": "Memoria por cliente",
+      "position": [
+        992,
+        352
+      ],
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "value": "YOUR_CALENDAR_ID",
+          "mode": "list",
+          "cachedResultName": "YOUR_CALENDAR_ID"
+        },
+        "timeMin": "={{ $fromAI('start_time', 'Inicio del rango a verificar en ISO 8601, ej: 2026-04-15T09:00:00') }}",
+        "timeMax": "={{ $fromAI('end_time', 'Fin del rango a verificar en ISO 8601, ej: 2026-04-15T20:00:00') }}",
+        "options": {}
+      },
+      "id": "node-gcal-check",
+      "name": "Verificar disponibilidad Calendar",
+      "position": [
+        1120,
+        352
+      ],
+      "type": "n8n-nodes-base.googleCalendarTool",
+      "typeVersion": 1.3,
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "o0lkIwtfjeNu5nLc",
+          "name": "Google Calendar account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "YOUR_CALENDAR_ID",
+          "mode": "list",
+          "cachedResultName": "YOUR_CALENDAR_ID"
+        },
+        "start": "={{ $fromAI('event_start', 'Inicio en ISO 8601, ej: 2026-04-14T16:30:00') }}",
+        "end": "={{ $fromAI('event_end', 'Fin en ISO 8601') }}",
+        "additionalFields": {
+          "description": "={{ $fromAI('event_description', 'Descripci�n: Cliente, Tel�fono, Servicio, Duraci�n, Origen: WhatsApp') }}",
+          "summary": "={{ $fromAI('event_title', 'T�tulo: Servicio - Nombre, ej: Corte - Luc�a Fern�ndez') }}"
+        }
+      },
+      "id": "node-gcal-create",
+      "name": "Crear cita en Calendar",
+      "position": [
+        736,
+        352
+      ],
+      "type": "n8n-nodes-base.googleCalendarTool",
+      "typeVersion": 1.3,
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "o0lkIwtfjeNu5nLc",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "calendar": {
+          "__rl": true,
+          "value": "YOUR_CALENDAR_ID",
+          "mode": "list",
+          "cachedResultName": "YOUR_CALENDAR_ID"
+        },
+        "eventId": "={{ $fromAI('event_id', 'ID del evento a eliminar') }}",
+        "options": {}
+      },
+      "id": "node-gcal-update",
+      "name": "Cancelar cita en Calendar",
+      "position": [
+        608,
+        352
+      ],
+      "type": "n8n-nodes-base.googleCalendarTool",
+      "typeVersion": 1.3,
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "o0lkIwtfjeNu5nLc",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "value": "YOUR_CALENDAR_ID",
+          "mode": "list",
+          "cachedResultName": "YOUR_CALENDAR_ID"
+        },
+        "limit": 10,
+        "timeMin": "={{ $fromAI('search_from', 'Fecha m�nima en ISO 8601') }}",
+        "timeMax": "={{ $fromAI('search_to', 'Fecha m�xima en ISO 8601') }}",
+        "options": {
+          "query": "={{ $fromAI('search_query', 'Nombre o tel�fono del cliente') }}"
+        }
+      },
+      "id": "node-gcal-list",
+      "name": "Buscar citas del cliente",
+      "position": [
+        480,
+        352
+      ],
+      "type": "n8n-nodes-base.googleCalendarTool",
+      "typeVersion": 1.3,
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "o0lkIwtfjeNu5nLc",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "from": "whatsapp:+14155238886",
+        "to": "={{ $('Extraer datos del mensaje').item.json.phoneNumber }}",
+        "message": "={{ $json.output }}",
+        "options": {}
+      },
+      "id": "node-send-twilio",
+      "name": "Enviar respuesta Twilio",
+      "position": [
+        -192,
+        -320
+      ],
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "credentials": {
+        "twilioApi": {
+          "id": "e2mfxHB5uzcaSBvh",
+          "name": "Twilio account"
+        }
+      },
+      "notes": "?? Nodo de referencia (Twilio). No conectado al flujo activo (WhatsApp API)."
+    },
+    {
+      "parameters": {
+        "from": "whatsapp:+14155238886",
+        "to": "={{ $('Extraer datos del mensaje').item.json.phoneNumber }}",
+        "message": "�Hola! ?? Soy el asistente de la peluquer�a. Puedo ayudarte a reservar, cambiar o cancelar tu cita. �En qu� te puedo ayudar?",
+        "options": {}
+      },
+      "id": "node-no-text",
+      "name": "Mensaje de bienvenida",
+      "position": [
+        -192,
+        752
+      ],
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "credentials": {
+        "twilioApi": {
+          "id": "e2mfxHB5uzcaSBvh",
+          "name": "Twilio account"
+        }
+      },
+      "notes": "?? Nodo de referencia (Twilio). No conectado al flujo activo (WhatsApp API)."
+    },
+    {
+      "parameters": {
+        "updates": [
+          "messages"
+        ],
+        "options": {}
+      },
+      "type": "n8n-nodes-base.whatsAppTrigger",
+      "typeVersion": 1,
+      "position": [
+        -192,
+        384
+      ],
+      "id": "17e649c7-5dcb-40cb-b80a-fc8963b379ab",
+      "name": "WhatsApp Trigger",
+      "webhookId": "f3b8e5cf-69f6-4a3b-868e-ff98d64a6a2f",
+      "credentials": {
+        "whatsAppTriggerApi": {
+          "id": "gtpw3TpM3PSKEDFf",
+          "name": "WhatsApp OAuth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "990099430862152",
+        "recipientPhoneNumber": "={{ $('Extraer datos del mensaje').item.json.phoneNumber }}",
+        "textBody": "�Hola! ?? Soy el asistente de la peluquer�a. Puedo ayudarte a reservar, cambiar o cancelar tu cita. �En qu� te puedo ayudar?",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1.1,
+      "position": [
+        800,
+        528
+      ],
+      "id": "4c3e9c44-8468-4071-aa9b-675a8dc914a5",
+      "name": "Send message",
+      "webhookId": "b30f75ca-6520-4ff9-8dd3-94d31b4e643e",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "JkoGNAAPWSXefsud",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "990099430862152",
+        "recipientPhoneNumber": "={{ $('Extraer datos del mensaje').item.json.phoneNumber }}",
+        "textBody": "={{ $json.output }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1.1,
+      "position": [
+        1328,
+        240
+      ],
+      "id": "8df9328e-3170-44bb-96b1-bdb87cf7e480",
+      "name": "Send message1",
+      "webhookId": "b30f75ca-6520-4ff9-8dd3-94d31b4e643e",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "JkoGNAAPWSXefsud",
+          "name": "WhatsApp account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Agente IA Peluquer�a": {
+      "main": [
+        [
+          {
+            "node": "Send message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar citas del cliente": {
+      "ai_tool": [
+        [
+          {
+            "index": 0,
+            "node": "Agente IA Peluquer�a",
+            "type": "ai_tool"
+          }
+        ]
+      ]
+    },
+    "Cancelar cita en Calendar": {
+      "ai_tool": [
+        [
+          {
+            "index": 0,
+            "node": "Agente IA Peluquer�a",
+            "type": "ai_tool"
+          }
+        ]
+      ]
+    },
+    "Crear cita en Calendar": {
+      "ai_tool": [
+        [
+          {
+            "index": 0,
+            "node": "Agente IA Peluquer�a",
+            "type": "ai_tool"
+          }
+        ]
+      ]
+    },
+    "Extraer datos del mensaje": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "�Tiene texto?",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "GPT-4o": {
+      "ai_languageModel": [
+        [
+          {
+            "index": 0,
+            "node": "Agente IA Peluquer�a",
+            "type": "ai_languageModel"
+          }
+        ]
+      ]
+    },
+    "Memoria por cliente": {
+      "ai_memory": [
+        [
+          {
+            "index": 0,
+            "node": "Agente IA Peluquer�a",
+            "type": "ai_memory"
+          }
+        ]
+      ]
+    },
+    "Verificar disponibilidad Calendar": {
+      "ai_tool": [
+        [
+          {
+            "index": 0,
+            "node": "Agente IA Peluquer�a",
+            "type": "ai_tool"
+          }
+        ]
+      ]
+    },
+    "�Tiene texto?": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Agente IA Peluquer�a",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "node": "Send message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WhatsApp Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extraer datos del mensaje",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Madrid",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false,
+    "saveManualExecutions": true
+  },
+  "versionId": "3a4766b5-fc77-4f25-b5c2-e00af653962a",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "36167d6a87dcf77e03df59571978c75e2e1b46acaad0451d3583bda45538f0bb"
+  },
+  "id": "2ZzZQItIobuRIHlT",
+  "tags": []
+}
