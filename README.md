@@ -1,39 +1,46 @@
-﻿# Agente IA Peluqueria — WhatsApp + Google Calendar
+# WhatsApp Booking Agent — Peluquerías con IA
 
-Agente conversacional para peluquerias que gestiona citas por WhatsApp usando GPT-4o y Google Calendar.
+Agente conversacional que gestiona **reservas, cancelaciones y consultas de cita** por WhatsApp de forma completamente automática. Sin intervención humana.
 
-## Que hace
+Construido para peluquerías y negocios de servicios con citas recurrentes.
 
-- Recibe mensajes de WhatsApp via Meta API (webhook)
-- GPT-4o interpreta la intencion: reservar, cancelar, consultar o reprogramar
+---
+
+## El problema que resuelve
+
+Una peluquería recibe decenas de mensajes de WhatsApp al día para gestionar citas. Responder manualmente interrumpe el trabajo, genera errores y cuesta tiempo. Este agente lo gestiona todo 24/7.
+
+**Conversación real:**
+> Cliente: "Hola, quiero cortarme el pelo el viernes por la tarde"
+> Agente: "Tengo disponible el viernes a las 17:00 y 18:30. ¿Cuál prefieres?"
+> Cliente: "A las 17"
+> Agente: "Perfecto, cita confirmada el viernes 6 de junio a las 17:00. Te mando recordatorio el día antes."
+
+---
+
+## Qué hace
+
+- Recibe mensajes de WhatsApp vía Meta API (webhook)
+- GPT-4o interpreta la intención: reservar, cancelar, consultar o reprogramar
 - Verifica disponibilidad en Google Calendar en tiempo real
-- Crea, modifica o cancela eventos automaticamente
-- Memoria por cliente (historial de conversacion por numero de telefono)
-- Responde en WhatsApp con confirmacion o alternativas de horario
+- Crea, modifica o cancela eventos automáticamente
+- Mantiene memoria por cliente (historial por número de teléfono)
+- Responde en WhatsApp con confirmación o alternativas de horario
+
+---
 
 ## Stack
 
-n8n · WhatsApp Business API (Meta) · GPT-4o · Google Calendar API · Buffer Memory
+| Herramienta | Uso |
+|---|---|
+| n8n | Orquestación del flujo |
+| WhatsApp Business API (Meta) | Canal de mensajería |
+| GPT-4o | Comprensión del lenguaje e intención |
+| Google Calendar API | Gestión de disponibilidad y eventos |
+| Buffer Memory | Historial de conversación por cliente |
+
+---
 
 ## Flujo
 
-`
-WhatsApp Trigger → Extraer datos → ¿Tiene texto? → Agente IA
-                                                     ├── Verificar disponibilidad Calendar
-                                                     ├── Crear cita en Calendar
-                                                     ├── Cancelar cita en Calendar
-                                                     └── Buscar citas del cliente
-                                    → Send WhatsApp Message
-`
 
-## Setup
-
-1. Importa `workflow.json` en n8n
-2. Credenciales: WhatsApp Business API, OpenAI API, Google Calendar OAuth2
-3. Configura webhook en Meta Developer Console
-4. Reemplaza `YOUR_CALENDAR_ID` con tu email de Google Calendar
-5. Activa el workflow
-
-## Autor
-
-Sergio Cebrian · github.com/scebriii
