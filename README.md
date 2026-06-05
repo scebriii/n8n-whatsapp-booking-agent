@@ -43,4 +43,39 @@ Una peluquería recibe decenas de mensajes de WhatsApp al día para gestionar ci
 
 ## Flujo
 
+WhatsApp Trigger
+→ Extraer datos del mensaje
+→ ¿Tiene texto?
+→ Agente IA (GPT-4o)
+├── Verificar disponibilidad en Calendar
+├── Crear cita
+├── Cancelar cita
+└── Buscar citas del cliente
+→ Respuesta por WhatsApp
+
+---
+
+## Setup
+
+1. Importa `workflow.json` en tu instancia de n8n
+2. Configura las credenciales:
+   - WhatsApp Business API (Meta Developer Console)
+   - OpenAI API Key
+   - Google Calendar OAuth2
+3. En Meta Developer Console: apunta el webhook a tu URL de n8n
+4. En el workflow: reemplaza `YOUR_CALENDAR_ID` por tu email de Google
+5. Activa el workflow
+
+**Requisitos:** n8n self-hosted o cloud · Cuenta Meta Business verificada · API Key de OpenAI
+
+---
+
+## Adaptable a otros negocios
+
+El mismo flujo funciona para clínicas, centros de estética, fisioterapeutas o cualquier negocio basado en citas. Solo cambia el prompt del agente.
+
+---
+
+Sergio Cebrián · [github.com/scebriii](https://github.com/scebriii)
+
 
